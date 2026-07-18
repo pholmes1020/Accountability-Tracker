@@ -282,9 +282,34 @@ const longDate=d=>d.toLocaleDateString("en-US",{weekday:"long",month:"long",day:
 const today=startOf(new Date());
 function fmtTime(t){if(!t)return"";let[h,m]=t.split(":").map(Number);const ap=h>=12?"PM":"AM";h=h%12||12;return `${h}:${String(m).padStart(2,"0")} ${ap}`;}
 
-async function load(){try{const r=await window.storage.get(KEY);if(r&&r.value)data=JSON.parse(r.value);}catch(e){}}
-async function save(){try{await window.storage.set(KEY,JSON.stringify(data));}catch(e){
-  document.getElementById("storeStatus").textContent="Saved for this session only — storage unavailable.";}}
+/* Storage layer. Uses the browser's localStorage (persists on your device,
+   works offline on a hosted/home-screen web app). Falls back to Anthropic's
+   preview storage only if localStorage is unavailable. */
+function rawGet(k){
+  try{ const v=localStorage.getItem(k); return v; }catch(e){ return null; }
+}
+function rawSet(k,v){
+  try{ localStorage.setItem(k,v); return true; }catch(e){ return false; }
+}
+async function load(){
+  let v=rawGet(KEY);
+  if(v===null && typeof window!=="undefined" && window.storage){
+    try{ const r=await window.storage.get(KEY); if(r&&r.value)v=r.value; }catch(e){}
+  }
+  if(v){ try{ data=JSON.parse(v); }catch(e){} }
+}
+async function save(){
+  const payload=JSON.stringify(data);
+  const ok=rawSet(KEY,payload);
+  if(!ok && typeof window!=="undefined" && window.storage){
+    try{ await window.storage.set(KEY,payload); return; }catch(e){}
+  }
+  if(!ok){
+    document.getElementById("storeStatus").textContent="Saved for this session only — storage unavailable.";
+  }else{
+    document.getElementById("storeStatus").textContent="";
+  }
+}
 
 function entry(k){return data.days[k]||null;}
 function commitActive(){
